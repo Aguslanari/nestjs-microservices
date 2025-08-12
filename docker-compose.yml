@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - NATS_URL=nats://nats:4222
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    depends_on:
+      - nats
+
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    depends_on:
+      - user-service
+      - product-service
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - USER_SERVICE_HOST=user-service
+      - USER_SERVICE_PORT=3001
+      - PRODUCT_SERVICE_HOST=product-service
+      - PRODUCT_SERVICE_PORT=3002
+      - ORDER_SERVICE_HOST=order-service
+      - ORDER_SERVICE_PORT=3003
+      - NATS_URL=nats://nats:4222
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - nats
+      - notification-service
+
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    command: ["--debug", "--trace"]
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - NATS_URL=nats://nats:4222
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    depends_on:
+      - nats
+
+networks:
+  microservices-network:
+    driver: bridge
